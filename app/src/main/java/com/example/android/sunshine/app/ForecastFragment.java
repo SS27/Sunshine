@@ -15,6 +15,7 @@
  */
 package com.example.android.sunshine.app;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
@@ -113,10 +114,13 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
 
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-//                String forecast = mForecastAdapter.getItem(position);
-//                Intent intent = new Intent(getActivity(), DetailActivity.class)
-//                        .putExtra(Intent.EXTRA_TEXT, forecast);
-//                startActivity(intent);
+                Cursor cursor = (Cursor) adapterView.getItemAtPosition(position);
+                if (cursor != null) {
+                    String locationSettings = Utility.getPreferredLocation(getActivity());
+                    Intent intent = new Intent(getActivity(), DetailActivity.class);
+                    intent.setData(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(locationSettings, cursor.getLong(COL_WEATHER_DATE)));
+                    startActivity(intent);
+                }
             }
         });
 
