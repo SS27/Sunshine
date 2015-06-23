@@ -61,30 +61,44 @@ public class FetchWeatherTask extends AsyncTask<String, Void, Void> {
      * @return the row ID of the added location.
      */
     long addLocation(String locationSetting, String cityName, double lat, double lon) {
-        // Students: First, check if the location with this city name exists in the db
-        // If it exists, return the current ID
-        // Otherwise, insert it using the content resolver and the base URI
-        long _id = -1;
-        Cursor cursor = mContext.getContentResolver().query(
+        long locationId;
+
+        // First, check if the location with this city name exists in the db
+        Cursor locationCursor = mContext.getContentResolver().query(
                 WeatherContract.LocationEntry.CONTENT_URI,
-                new String[] {WeatherContract.LocationEntry._ID},
+                new String[]{WeatherContract.LocationEntry._ID},
                 WeatherContract.LocationEntry.COLUMN_LOCATION_SETTING + " = ?",
-                new String[] {locationSetting},
+                new String[]{locationSetting},
                 null);
-        if (cursor.moveToFirst()) {
-            _id = cursor.getLong(cursor.getColumnIndex(WeatherContract.LocationEntry._ID));
-            cursor.close();
+
+        if (locationCursor.moveToFirst()) {
+            int locationIdIndex = locationCursor.getColumnIndex(WeatherContract.LocationEntry._ID);
+            locationId = locationCursor.getLong(locationIdIndex);
+        } else {
+            // Now that the content provider is set up, inserting rows of data is pretty simple.
+            // First create a ContentValues object to hold the data you want to insert.
+            ContentValues locationValues = new ContentValues();
+
+            // Then add the data, along with the corresponding name of the data type,
+            // so the content provider knows what kind of value is being inserted.
+            locationValues.put(WeatherContract.LocationEntry.COLUMN_CITY_NAME, cityName);
+            locationValues.put(WeatherContract.LocationEntry.COLUMN_LOCATION_SETTING, locationSetting);
+            locationValues.put(WeatherContract.LocationEntry.COLUMN_COORD_LAT, lat);
+            locationValues.put(WeatherContract.LocationEntry.COLUMN_COORD_LONG, lon);
+
+            // Finally, insert location data into the database.
+            Uri insertedUri = mContext.getContentResolver().insert(
+                    WeatherContract.LocationEntry.CONTENT_URI,
+                    locationValues
+            );
+
+            // The resulting URI contains the ID for the row.  Extract the locationId from the Uri.
+            locationId = ContentUris.parseId(insertedUri);
         }
-        else {
-            ContentValues values = new ContentValues();
-            values.put(WeatherContract.LocationEntry.COLUMN_LOCATION_SETTING, locationSetting);
-            values.put(WeatherContract.LocationEntry.COLUMN_CITY_NAME, cityName);
-            values.put(WeatherContract.LocationEntry.COLUMN_COORD_LAT, lat);
-            values.put(WeatherContract.LocationEntry.COLUMN_COORD_LONG, lon);
-            Uri returnedUri = mContext.getContentResolver().insert(WeatherContract.LocationEntry.CONTENT_URI, values);
-            _id = ContentUris.parseId(returnedUri);
-        }
-        return _id;
+
+        locationCursor.close();
+        // Wait, that worked?  Yes!
+        return locationId;
     }
 
     /**
@@ -217,34 +231,15 @@ public class FetchWeatherTask extends AsyncTask<String, Void, Void> {
                 cVVector.add(weatherValues);
             }
 
+            int inserted = 0;
             // add to database
             if ( cVVector.size() > 0 ) {
-                // Student: call bulkInsert to add the weatherEntries to the database here
                 ContentValues[] cvArray = new ContentValues[cVVector.size()];
                 cVVector.toArray(cvArray);
-                mContext.getContentResolver().bulkInsert(WeatherEntry.CONTENT_URI, cvArray);
+                inserted = mContext.getContentResolver().bulkInsert(WeatherEntry.CONTENT_URI, cvArray);
             }
 
-            // Sort order:  Ascending, by date.
-//            String sortOrder = WeatherEntry.COLUMN_DATE + " ASC";
-//            Uri weatherForLocationUri = WeatherEntry.buildWeatherLocationWithStartDate(
-//                    locationSetting, System.currentTimeMillis());
-//
-            // Students: Uncomment the next lines to display what what you stored in the bulkInsert
-//
-//            Cursor cur = mContext.getContentResolver().query(weatherForLocationUri,
-//                    null, null, null, sortOrder);
-//
-//            cVVector = new Vector<ContentValues>(cur.getCount());
-//            if ( cur.moveToFirst() ) {
-//                do {
-//                    ContentValues cv = new ContentValues();
-//                    DatabaseUtils.cursorRowToContentValues(cur, cv);
-//                    cVVector.add(cv);
-//                } while (cur.moveToNext());
-//            }
-
-            Log.d(LOG_TAG, "FetchWeatherTask Complete. " + cVVector.size() + " Inserted");
+            Log.d(LOG_TAG, "FetchWeatherTask Complete. " + inserted + " Inserted");
 
         } catch (JSONException e) {
             Log.e(LOG_TAG, e.getMessage(), e);
@@ -328,8 +323,7 @@ public class FetchWeatherTask extends AsyncTask<String, Void, Void> {
         } catch (JSONException e) {
             Log.e(LOG_TAG, e.getMessage(), e);
             e.printStackTrace();
-        }
-        finally {
+        } finally {
             if (urlConnection != null) {
                 urlConnection.disconnect();
             }
@@ -341,9 +335,6 @@ public class FetchWeatherTask extends AsyncTask<String, Void, Void> {
                 }
             }
         }
-
-        // This will only happen if there was an error getting or parsing the forecast.
         return null;
     }
-
 }
